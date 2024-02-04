@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "airflow-duckdb"
+version = "0.0.1"
+description = "A package to run DuckDB queries from Apache Airflow"
+authors = ["Hussein Awala <hussein@awala.fr>"]
+readme = "README.md"
+repository = "https://github.com/hussein-awala/airflow-duckdb"
+keywords = ["airflow", "duckdb", "kubernetes", "airflow-duckdb"]
+license = "Apache-2.0"
+packages = [{include = "airflow_duckdb"}]
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/hussein-awala/airflow-duckdb/issues"
+"Documentation" = "https://github.com/hussein-awala/airflow-duckdb/blob/main/README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.12"
+apache-airflow = "^2.6.0"
+apache-airflow-providers-cncf-kubernetes = "^7.0.0"
+
+[tool.poetry.dev-dependencies]
+mock = "^5.1.0"
+pytest = "^7.4.3"
+pre-commit = "^3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
