@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import kubernetes.client as k8s
+import sqlparse
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
 
 if TYPE_CHECKING:
@@ -69,15 +70,16 @@ class DuckDBPodOperator(KubernetesPodOperator):
 
     def execute(self, context):
         """Execute the operator."""
+        query = sqlparse.format(self.query, strip_comments=True)
         # split the query by semicolon
-        parsed_query = self.query.rstrip(";").split(";")
+        parsed_query = sqlparse.split(query)
         # create a list of pre-execution commands
         pre_execution = []
         if self.do_xcom_push:
             # if xcom_push is enabled, we will save the last SELECT statement as a JSON file
             last_query = parsed_query[-1]
             if last_query.strip().upper().startswith("SELECT"):
-                last_query = f"COPY ({last_query}) TO '/airflow/xcom/return.json' (FORMAT JSON, ARRAY true);"
+                last_query = f"COPY ({last_query.strip(';')}) TO '/airflow/xcom/return.json' (FORMAT JSON, ARRAY true);"
             parsed_query = parsed_query[:-1] + [last_query]
         if self.s3_fs_config:
             # if S3 filesystem is configured, we will load the S3 filesystem and set the configurations

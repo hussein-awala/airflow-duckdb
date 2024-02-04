@@ -15,6 +15,7 @@ packages = [{include = "airflow_duckdb"}]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.12"
+sqlparse = "^0.4.4"
 apache-airflow = "^2.6.0"
 apache-airflow-providers-cncf-kubernetes = "^7.0.0"
 
