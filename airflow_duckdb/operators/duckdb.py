@@ -5,7 +5,11 @@ from typing import TYPE_CHECKING
 
 import kubernetes.client as k8s
 import sqlparse
+from airflow.providers.cncf.kubernetes import __version__
+from airflow.providers.cncf.kubernetes.kubernetes_helper_functions import add_pod_suffix
 from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
+from airflow.providers.cncf.kubernetes.secret import Secret
+from packaging import version
 
 if TYPE_CHECKING:
     from typing import Any
@@ -70,13 +74,32 @@ class DuckDBPodOperator(KubernetesPodOperator):
 
         super()._render_nested_template_fields(content, context, jinja_env, seen_oids)
 
+    def _create_k8s_secret(self, *, namespace: str, secret_data: dict[str, str]) -> str:
+        """Create a Kubernetes secret."""
+
+        secret = k8s.V1Secret(
+            metadata=k8s.V1ObjectMeta(
+                name=add_pod_suffix(pod_name="duckdb-secret"),
+                labels=self.labels,
+                annotations=self.annotations,
+            ),
+            type="Opaque",
+            string_data=secret_data,
+        )
+        self.client.create_namespaced_secret(namespace, secret)
+        return secret.metadata.name
+
     def execute(self, context):
         """Execute the operator."""
         query = sqlparse.format(self.query, strip_comments=True)
         # split the query by semicolon
         parsed_query = sqlparse.split(query)
         # create a list of pre-execution commands
+        secret_name: str | None = None
         pre_execution = []
+        secret_namespace = (
+            self.namespace or self.hook.get_namespace() or self._incluster_namespace or "default"
+        )
         if self.do_xcom_push:
             # if xcom_push is enabled, we will save the last SELECT statement as a JSON file
             last_query = parsed_query[-1]
@@ -101,21 +124,61 @@ class DuckDBPodOperator(KubernetesPodOperator):
             if self.s3_fs_config.endpoint:
                 pre_execution.append(f"SET s3_endpoint = '{self.s3_fs_config.endpoint}';")
             pre_execution.append(f"SET s3_use_ssl = {'true' if self.s3_fs_config.use_ssl else 'false'};")
-            # TODO: move these configurations to a secret
+            secret_data = {}
             if self.s3_fs_config.access_key_id:
-                self.env_vars.append(
-                    k8s.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=self.s3_fs_config.access_key_id)
-                )
+                secret_data["AWS_ACCESS_KEY_ID"] = self.s3_fs_config.access_key_id
             if self.s3_fs_config.secret_access_key:
-                self.env_vars.append(
-                    k8s.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=self.s3_fs_config.secret_access_key)
-                )
+                secret_data["AWS_SECRET_ACCESS_KEY"] = self.s3_fs_config.secret_access_key
             if self.s3_fs_config.region:
-                self.env_vars.append(k8s.V1EnvVar(name="AWS_REGION", value=self.s3_fs_config.region))
+                secret_data["AWS_REGION"] = self.s3_fs_config.region
+            if secret_data:
+                secret_name = self._create_k8s_secret(
+                    namespace=secret_namespace,
+                    secret_data={
+                        "AWS_ACCESS_KEY_ID": self.s3_fs_config.access_key_id,
+                        "AWS_SECRET_ACCESS_KEY": self.s3_fs_config.secret_access_key,
+                    },
+                )
         # reconstruct the query
         self.query = "\n".join(pre_execution + parsed_query)
         self.arguments = [
             "-s",
             self.query,
         ]
+        if secret_name:
+            self.secrets += [
+                Secret("env", None, secret=secret_name),
+            ]
+            if version.parse(__version__) >= version.parse("7.14.0"):
+                from airflow.providers.cncf.kubernetes.callbacks import KubernetesPodOperatorCallback
+
+                class DuckDBPodOperatorCallback(KubernetesPodOperatorCallback):
+                    @staticmethod
+                    def on_pod_creation(
+                        *, pod: k8s.V1Pod, client: k8s.CoreV1Api, mode: str, **kwargs
+                    ) -> None:
+                        secret = client.read_namespaced_secret(
+                            name=secret_name,
+                            namespace=secret_namespace,
+                        )
+                        secret.metadata.owner_references = [
+                            k8s.V1OwnerReference(
+                                api_version="v1",
+                                kind="Pod",
+                                name=pod.metadata.name,
+                                uid=pod.metadata.uid,
+                            )
+                        ]
+                        client.patch_namespaced_secret(
+                            name=secret_name,
+                            namespace=secret_namespace,
+                            body=secret,
+                        )
+
+                self.callbacks = DuckDBPodOperatorCallback
+            else:
+                self.log.warning(
+                    "The version of the Kubernetes provider is too old to support secret ownership, "
+                    "please upgrade to a version >= 7.14.0 or manually clean up the secrets periodically."
+                )
         return super().execute(context)
