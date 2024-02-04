@@ -84,15 +84,15 @@ class DuckDBPodOperator(KubernetesPodOperator):
         if self.s3_fs_config:
             # if S3 filesystem is configured, we will load the S3 filesystem and set the configurations
             pre_execution.extend([
-                "LOAD httpfs",
-                "LOAD aws",
-                "CALL load_aws_credentials()",
-                "SET s3_url_style='path'",
+                "LOAD httpfs;",
+                "LOAD aws;",
+                "CALL load_aws_credentials();",
+                "SET s3_url_style='path';",
             ])
             # set the S3 filesystem configurations from the S3FSConfig (useful for local development with MinIO)
             if self.s3_fs_config.endpoint:
-                pre_execution.append(f"SET s3_endpoint = '{self.s3_fs_config.endpoint}'")
-            pre_execution.append(f"SET s3_use_ssl = {'true' if self.s3_fs_config.use_ssl else 'false'}")
+                pre_execution.append(f"SET s3_endpoint = '{self.s3_fs_config.endpoint}';")
+            pre_execution.append(f"SET s3_use_ssl = {'true' if self.s3_fs_config.use_ssl else 'false'};")
             # TODO: move these configurations to a secret
             if self.s3_fs_config.access_key_id:
                 self.env_vars.append(k8s.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=self.s3_fs_config.access_key_id))
@@ -101,7 +101,7 @@ class DuckDBPodOperator(KubernetesPodOperator):
             if self.s3_fs_config.region:
                 self.env_vars.append(k8s.V1EnvVar(name="AWS_REGION", value=self.s3_fs_config.region))
         # reconstruct the query
-        self.query = ";\n".join(pre_execution + parsed_query)
+        self.query = "\n".join(pre_execution + parsed_query)
         self.arguments = [
             "-s",
             self.query,
