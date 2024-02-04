@@ -26,7 +26,7 @@ class DuckDBPodOperator(KubernetesPodOperator):
     """Runs a task using a KubernetesPodOperator with the DuckDB image."""
 
     template_fields = (*KubernetesPodOperator.template_fields, "query", "s3_fs_config")
-    template_ext = ("sql", "sql.j2")
+    template_ext = (".sql", ".sql.j2")
 
     def __init__(
         self,
