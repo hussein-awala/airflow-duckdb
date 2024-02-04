@@ -5,10 +5,12 @@ In this example, we load a CSV file from a S3 bucket contains information about 
 we filter the expired licenses last month, and we append the result to a parquet table partitioned
 by year and month. Finally, we select the count of expired licenses to push it to XCom.
 """
+from __future__ import annotations
+
 from datetime import datetime
+
 from airflow import DAG
 from airflow_duckdb.operators.duckdb import DuckDBPodOperator, S3FSConfig
-
 
 with DAG(
     "duckdb_example2",

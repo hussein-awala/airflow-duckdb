@@ -9,6 +9,7 @@ from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import Kubernete
 
 if TYPE_CHECKING:
     from typing import Any
+
     import jinja2
     from airflow.utils.context import Context
 
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
 @dataclass(kw_only=True)
 class S3FSConfig:
     """S3 Filesystem configuration."""
+
     endpoint: str | None = None
     access_key_id: str | None = None
     secret_access_key: str | None = None
@@ -35,7 +37,7 @@ class DuckDBPodOperator(KubernetesPodOperator):
         s3_fs_config: S3FSConfig | None = None,
         image: str = "airflow_duckdb:latest",
         name: str = "duckdb",
-        **kwargs
+        **kwargs,
     ):
         self.query = query
         self.s3_fs_config = s3_fs_config
@@ -79,25 +81,35 @@ class DuckDBPodOperator(KubernetesPodOperator):
             # if xcom_push is enabled, we will save the last SELECT statement as a JSON file
             last_query = parsed_query[-1]
             if last_query.strip().upper().startswith("SELECT"):
-                last_query = f"COPY ({last_query.strip(';')}) TO '/airflow/xcom/return.json' (FORMAT JSON, ARRAY true);"
+                last_query = (
+                    f"COPY ({last_query.strip(';')})"
+                    "TO '/airflow/xcom/return.json' (FORMAT JSON, ARRAY true);"
+                )
             parsed_query = parsed_query[:-1] + [last_query]
         if self.s3_fs_config:
             # if S3 filesystem is configured, we will load the S3 filesystem and set the configurations
-            pre_execution.extend([
-                "LOAD httpfs;",
-                "LOAD aws;",
-                "CALL load_aws_credentials();",
-                "SET s3_url_style='path';",
-            ])
-            # set the S3 filesystem configurations from the S3FSConfig (useful for local development with MinIO)
+            pre_execution.extend(
+                [
+                    "LOAD httpfs;",
+                    "LOAD aws;",
+                    "CALL load_aws_credentials();",
+                    "SET s3_url_style='path';",
+                ]
+            )
+            # set the S3 filesystem configurations from the S3FSConfig
+            # (useful for local development with MinIO)
             if self.s3_fs_config.endpoint:
                 pre_execution.append(f"SET s3_endpoint = '{self.s3_fs_config.endpoint}';")
             pre_execution.append(f"SET s3_use_ssl = {'true' if self.s3_fs_config.use_ssl else 'false'};")
             # TODO: move these configurations to a secret
             if self.s3_fs_config.access_key_id:
-                self.env_vars.append(k8s.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=self.s3_fs_config.access_key_id))
+                self.env_vars.append(
+                    k8s.V1EnvVar(name="AWS_ACCESS_KEY_ID", value=self.s3_fs_config.access_key_id)
+                )
             if self.s3_fs_config.secret_access_key:
-                self.env_vars.append(k8s.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=self.s3_fs_config.secret_access_key))
+                self.env_vars.append(
+                    k8s.V1EnvVar(name="AWS_SECRET_ACCESS_KEY", value=self.s3_fs_config.secret_access_key)
+                )
             if self.s3_fs_config.region:
                 self.env_vars.append(k8s.V1EnvVar(name="AWS_REGION", value=self.s3_fs_config.region))
         # reconstruct the query

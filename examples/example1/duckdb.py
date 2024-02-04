@@ -4,10 +4,12 @@ This is a simple example of how to use the DuckDBPodOperator with a S3FSConfig.
 In this example, we load the S3 access key and secret from a connection, and the sql query from a file.
 We set `do_xcom_push` to `True` to push the result of the query to XCom.
 """
+from __future__ import annotations
+
 from datetime import datetime
+
 from airflow import DAG
 from airflow_duckdb.operators.duckdb import DuckDBPodOperator, S3FSConfig
-
 
 with DAG(
     "duckdb_example1",
