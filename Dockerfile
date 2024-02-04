@@ -1,9 +1,12 @@
 FROM debian:stable-slim
 
+ARG DUCKDB_VERSION=0.9.2
+
 # Install DuckDB
-RUN apt-get update && apt-get install -y wget unzip \
-    && ARCH=$(uname -m) \
-    && wget https://github.com/duckdb/duckdb/releases/download/v0.9.2/duckdb_cli-linux-${ARCH}.zip \
+RUN apt-get update \
+    && apt-get install -y wget unzip \
+    && ARCH=$([ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ] && echo "aarch64" || echo "amd64") \
+    && wget https://github.com/duckdb/duckdb/releases/download/v${DUCKDB_VERSION}/duckdb_cli-linux-${ARCH}.zip \
     && unzip duckdb_cli-linux-${ARCH}.zip -d /usr/local/bin \
     && chmod +x /usr/local/bin/duckdb \
     && rm duckdb_cli-linux-${ARCH}.zip
