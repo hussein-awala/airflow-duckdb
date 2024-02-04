@@ -35,7 +35,7 @@ class DuckDBPodOperator(KubernetesPodOperator):
         self,
         query: str,
         s3_fs_config: S3FSConfig | None = None,
-        image: str = "airflow_duckdb:latest",
+        image: str = "ghcr.io/hussein-awala/airflow-duckdb:latest",
         name: str = "duckdb",
         **kwargs,
     ):

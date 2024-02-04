@@ -27,6 +27,4 @@ with DAG(
             access_key_id="{{ conn.duckdb_s3.login }}",
             secret_access_key="{{ conn.duckdb_s3.password }}",
         ),
-        # For local development with kind or minikube, set the image_pull_policy to Never
-        image_pull_policy="Never",
     )
